@@ -1,0 +1,3 @@
+[submodule "lib/om-lib"]
+	path = lib/om-lib
+	url = git@bitbucket.org:omichel/om-lib.git
