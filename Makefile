@@ -4,8 +4,12 @@ SEND_SIGNAL_OBJS =
 
 OM_LIBS = lib/om-lib/libom-ipc.a lib/om-lib/libom-async.a
 
+DBUS_I = $(shell pkg-config --cflags-only-I dbus-1)
+DBUS_L = $(shell pkg-config --libs dbus-1)
+
 CXX = g++
-CXXFLAGS = -std=c++11 -Wall
+CXXFLAGS = -std=c++11 -Wall -Ilib/om-lib $(DBUS_I)
+LDFLAGS = $(DBUS_L)
 
 all: $(SEND_SIGNAL_EXE)
 

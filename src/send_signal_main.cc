@@ -3,10 +3,17 @@
 #include <iostream>
 #include <map>
 
+#include <om/ipc/dbus/connection.h>
+#include <om/ipc/dbus/message.h>
+#include <om/async/epoll_wrapper.h>
+
 #include <unistd.h>
 
 namespace dbus_tools {
 	namespace send_signal {
+
+		om::async::EPollWrapper epoll_wrapper;
+		om::ipc::dbus::Connection dbus_connection;
 
 		struct send_signal_options_t {
 			std::string bus;
@@ -16,16 +23,84 @@ namespace dbus_tools {
 			std::multimap<std::string, std::string> args;
 		} options;
 
+		void connect();
+		void connected(om::ipc::dbus::Connection* c);
+		void send_signal(om::ipc::dbus::Connection* c);
+
+		DBusHandlerResult default_handler(om::ipc::dbus::Connection* c, DBusMessage* m);
+
 		void parse_options(int argc, char** argv);
-		void print_usage();
+		void print_usage();		
 	}
 }
 
 int main(int argc, char** argv)
 {
 	dbus_tools::send_signal::parse_options(argc, argv);
+	dbus_tools::send_signal::connect();
 
 	return 0;
+}
+
+void dbus_tools::send_signal::connect()
+{
+	
+	using namespace std::placeholders;
+
+	dbus_connection.set_default_signal_handler(
+		std::bind(dbus_tools::send_signal::default_handler, _1, _2)
+	);
+
+	dbus_connection.set_default_method_call_handler(
+		std::bind(dbus_tools::send_signal::default_handler, _1, _2)
+	);
+
+	dbus_connection.set_default_method_return_handler(
+		std::bind(dbus_tools::send_signal::default_handler, _1, _2)
+	);
+
+	dbus_connection.set_default_error_handler(
+		std::bind(dbus_tools::send_signal::default_handler, _1, _2)
+	);
+		
+	try {
+
+		dbus_connection.open(
+			options.bus, "de.editum.dbus_tools.SendSignal",
+			std::bind(dbus_tools::send_signal::connected, _1)
+		);
+
+	} catch(std::runtime_error& e) {
+		std::cerr << "error occured" << std::endl;
+	}
+
+}
+
+void dbus_tools::send_signal::connected(om::ipc::dbus::Connection* c)
+{
+	send_signal(c);
+}
+
+void dbus_tools::send_signal::send_signal(om::ipc::dbus::Connection* c)
+{
+	try {
+
+		om::ipc::dbus::Message m(DBUS_MESSAGE_TYPE_SIGNAL);
+
+		m.set_interface(options.iface);
+		m.set_member(options.member);
+		m.set_path(options.obj_path);
+
+		c->send(m);
+
+	} catch(std::runtime_error& e) {
+		std::cerr << "error occured" << std::endl;
+	}
+}
+
+DBusHandlerResult dbus_tools::send_signal::default_handler(om::ipc::dbus::Connection* c, DBusMessage* m)
+{
+	return DBUS_HANDLER_RESULT_HANDLED ;
 }
 
 void dbus_tools::send_signal::parse_options(int argc, char** argv)
@@ -40,22 +115,22 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 	while((opt = getopt(argc, argv, "b:i:m:o:")) != -1) {
 		switch(opt) {
 			case 'b':
-				dbus_tools::send_signal::options.bus = std::string(optarg);
+				options.bus = std::string(optarg);
 				b_present = true;
 				break;
 			case 'i':
-				dbus_tools::send_signal::options.iface = std::string(optarg);
+				options.iface = std::string(optarg);
 				i_present = true;
 				break;
 			case 'm':
-				dbus_tools::send_signal::options.member = std::string(optarg);
+				options.member = std::string(optarg);
 				m_present = true;
 				break;
 			case 'o':
-				dbus_tools::send_signal::options.obj_path = std::string(optarg);
+				options.obj_path = std::string(optarg);
 				break;
 			default:
-				dbus_tools::send_signal::print_usage(), exit(1);
+				print_usage(), exit(1);
 		}
 	}
 
@@ -72,17 +147,17 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 				val = arg.substr(sep+1, arg.length()-1);
 
 				if(type != "str" && type != "int")
-					dbus_tools::send_signal::print_usage(), exit(1);
+					print_usage(), exit(1);
 
 			} else
-				dbus_tools::send_signal::print_usage(), exit(1);
+				print_usage(), exit(1);
 
-			dbus_tools::send_signal::options.args.emplace(type, val);
+			options.args.emplace(type, val);
 		}
 	}
 
 	if(!b_present || !i_present || !m_present)
-		dbus_tools::send_signal::print_usage(), exit(1);
+		print_usage(), exit(1);
 }
 
 void dbus_tools::send_signal::print_usage() {
