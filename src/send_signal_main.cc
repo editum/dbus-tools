@@ -16,6 +16,7 @@ namespace dbus_tools {
 		om::ipc::dbus::Connection dbus_connection;
 
 		struct send_signal_options_t {
+			std::string req_name;
 			std::string bus;
 			std::string iface;
 			std::string member;
@@ -27,7 +28,8 @@ namespace dbus_tools {
 		void connected(om::ipc::dbus::Connection* c);
 		void send_signal(om::ipc::dbus::Connection* c);
 
-		DBusHandlerResult default_handler(om::ipc::dbus::Connection* c, DBusMessage* m);
+		DBusHandlerResult default_handler(om::ipc::dbus::Connection* c,
+			DBusMessage* m);
 
 		void parse_options(int argc, char** argv);
 		void print_usage();		
@@ -65,15 +67,13 @@ void dbus_tools::send_signal::connect()
 		
 	try {
 
-		dbus_connection.open(
-			options.bus, "de.editum.dbus_tools.SendSignal",
-			std::bind(dbus_tools::send_signal::connected, _1)
-		);
+		dbus_connection.open(options.bus, options.req_name, 
+			std::bind(connected, _1));
 
 	} catch(std::runtime_error& e) {
-		std::cerr << "error occured" << std::endl;
+		std::cerr << "send-signal: an error occured: " << e.what() << std::endl;
+		exit(1);
 	}
-
 }
 
 void dbus_tools::send_signal::connected(om::ipc::dbus::Connection* c)
@@ -91,14 +91,24 @@ void dbus_tools::send_signal::send_signal(om::ipc::dbus::Connection* c)
 		m.set_member(options.member);
 		m.set_path(options.obj_path);
 
+		for(std::pair<std::string,std::string> arg : options.args) {
+
+			if(arg.first == "str")
+				m.append_string(arg.second);
+			else if(arg.first == "int")
+				m.append_int32(atoi(arg.second.c_str()));
+		}
+
 		c->send(m);
 
 	} catch(std::runtime_error& e) {
-		std::cerr << "error occured" << std::endl;
+		std::cerr << "send-signal: an error occured: " << e.what() << std::endl;
+		exit(1);
 	}
 }
 
-DBusHandlerResult dbus_tools::send_signal::default_handler(om::ipc::dbus::Connection* c, DBusMessage* m)
+DBusHandlerResult dbus_tools::send_signal::default_handler(
+	om::ipc::dbus::Connection* c, DBusMessage* m)
 {
 	return DBUS_HANDLER_RESULT_HANDLED ;
 }
@@ -110,9 +120,10 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 
 	bool b_present = false, i_present = false, m_present = false;
 
-	dbus_tools::send_signal::options.obj_path = "/";
+	options.obj_path = "/";
+	options.req_name = "de.editum.dbus_tools.SendSignal";
 
-	while((opt = getopt(argc, argv, "b:i:m:o:")) != -1) {
+	while((opt = getopt(argc, argv, "b:i:m:o:r:")) != -1) {
 		switch(opt) {
 			case 'b':
 				options.bus = std::string(optarg);
@@ -128,6 +139,9 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 				break;
 			case 'o':
 				options.obj_path = std::string(optarg);
+				break;
+			case 'r':
+				options.req_name = std::string(optarg);
 				break;
 			default:
 				print_usage(), exit(1);
@@ -151,6 +165,9 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 
 			} else
 				print_usage(), exit(1);
+
+			// need to save as int (pos) -> tuple( type, val )
+			// multimap is ordered by key! 
 
 			options.args.emplace(type, val);
 		}
