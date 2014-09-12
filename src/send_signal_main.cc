@@ -1,3 +1,10 @@
+//
+//  dbus-tools [https://github.com/editum/dbus-tools]
+//  src/send_signal_main.cc
+//  by Oliver Michel <oliver dot michel at editum dot de>
+//  http://ngn.cs.colorado/~oliver
+//
+
 
 #include <string>
 #include <iostream>
