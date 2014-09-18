@@ -23,6 +23,7 @@ namespace dbus_tools {
 		om::ipc::dbus::Connection dbus_connection;
 
 		struct send_signal_options_t {
+			std::string destination;
 			std::string req_name;
 			std::string bus;
 			std::string iface;
@@ -98,6 +99,9 @@ void dbus_tools::send_signal::send_signal(om::ipc::dbus::Connection* c)
 		m.set_member(options.member);
 		m.set_path(options.obj_path);
 
+		if(options.destination != ".")
+			m.set_destination(options.destination);
+
 		for(std::pair<std::string,std::string> arg : options.args) {
 
 			if(arg.first == "str")
@@ -105,6 +109,8 @@ void dbus_tools::send_signal::send_signal(om::ipc::dbus::Connection* c)
 			else if(arg.first == "int")
 				m.append_int32(atoi(arg.second.c_str()));
 		}
+
+		std::cout << m.description() << std::endl;
 
 		c->send(m);
 
@@ -127,10 +133,11 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 
 	bool b_present = false, i_present = false, m_present = false;
 
-	options.obj_path = "/";
-	options.req_name = "de.editum.dbus_tools.SendSignal";
+	options.obj_path    = "/";
+	options.req_name    = "de.editum.dbus_tools.SendSignal";
+	options.destination = ".";
 
-	while((opt = getopt(argc, argv, "b:i:m:o:r:")) != -1) {
+	while((opt = getopt(argc, argv, "d:b:i:m:o:r:")) != -1) {
 		switch(opt) {
 			case 'b':
 				options.bus = std::string(optarg);
@@ -149,6 +156,9 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 				break;
 			case 'r':
 				options.req_name = std::string(optarg);
+				break;
+			case 'd':
+				options.destination = std::string(optarg);
 				break;
 			default:
 				print_usage(), exit(1);
@@ -185,7 +195,6 @@ void dbus_tools::send_signal::parse_options(int argc, char** argv)
 }
 
 void dbus_tools::send_signal::print_usage() {
-	std::cout << "Usage: send-signal -b bus -i interface -m member [-o obj_path]"
-		<< " [type:val]*"
-		<< std::endl;
+	std::cout << "Usage: send-signal [-r request_name] [-d destination] -b bus "
+		<< "-i interface -m member [-o obj_path] [type:val]*" << std::endl;
 }
